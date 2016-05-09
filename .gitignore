@@ -1,2 +1,9 @@
 # Google App Engine generated folder
 appengine-generated/
+
+# Your top-secret settings. Do not commit to the repository
+secrets.yaml
+
+# Other compile and project maintenance artifacts
+*.pyc
+
