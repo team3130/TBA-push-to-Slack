@@ -25,6 +25,7 @@ def unfrc(str):
     return str.replace('frc','',1)
 
 def parse_tba(payload):
+    tz_offset = config.get('tz_offset', 0)
     message = ""
     body = json.loads(payload)
     if body['message_type'] == 'upcoming_match':
@@ -35,8 +36,8 @@ def parse_tba(payload):
             count += 1
             if count == 3:
               message += "] blue[ "
-        predicted = time.strftime("%H:%M",time.localtime(body['message_data']['predicted_time']-(3600*5)))
-        scheduled = time.strftime("%H:%M",time.localtime(body['message_data']['scheduled_time']-(3600*5)))
+        predicted = time.strftime("%H:%M",time.gmtime(body['message_data']['predicted_time']-tz_offset))
+        scheduled = time.strftime("%H:%M",time.gmtime(body['message_data']['scheduled_time']-tz_offset))
         message += "] at "+predicted+" (scheduled: "+scheduled+") "
         message += body['message_data']['match_key']
     elif body['message_type'] == 'match_score':
@@ -50,7 +51,7 @@ def parse_tba(payload):
             message += "; "
     else:
         message += "TBA is trying to tell us something about " + body['message_type']
-        message += " at " + time.asctime(time.localtime())
+        message += " at " + time.asctime(time.gmtime(time.time()-tz_offset))
     return message
 
 class IncomingHandler(webapp2.RequestHandler):

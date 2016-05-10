@@ -7,4 +7,6 @@ secrets.yaml
 # Other compile and project maintenance artifacts
 *.pyc
 *.swp
+source-context.json
+source-contexts.json
 
