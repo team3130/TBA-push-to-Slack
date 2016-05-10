@@ -6,4 +6,5 @@ secrets.yaml
 
 # Other compile and project maintenance artifacts
 *.pyc
+*.swp
 

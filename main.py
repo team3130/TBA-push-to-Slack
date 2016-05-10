@@ -16,7 +16,7 @@ def post2slack(message):
     conn = httplib.HTTPSConnection(config['webhook_hostname'])
     conn.request("POST", config['webhook_request'], params, headers)
     response = conn.getresponse()
-    ret = response.status + response.reason
+    ret = str(response.status) + " " + response.reason + "<br>\n"
     ret += response.read()
     conn.close()
     return ret
@@ -50,6 +50,7 @@ def parse_tba(payload):
             message += "; "
     else:
         message += "TBA is trying to tell us something about " + body['message_type']
+        message += " at " + time.asctime(time.localtime())
     return message
 
 class IncomingHandler(webapp2.RequestHandler):
@@ -63,9 +64,10 @@ class IncomingHandler(webapp2.RequestHandler):
                 print "checksum error happened"
                 return
 
-        if payload.startswith("payload="): payload = payload.replace("payload=","",1)
-        post2slack(parse_tba(payload))
-        self.response.write("Thanks for all the fish")
+        if payload.startswith("payload="):
+            payload = payload.replace("payload=","",1)
+            payload = urllib.unquote_plus(payload)
+        self.response.write(post2slack(parse_tba(payload)))
 
 class MainHandler(webapp2.RequestHandler):
     def get(self):
