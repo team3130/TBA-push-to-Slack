@@ -54,7 +54,7 @@ def parse_tba(payload):
         print "Verification code: ", body['message_data']
     else:
         message += "TBA is trying to tell us something about " + body['message_type']
-        message += " at " + time.asctime(time.gmtime(time.time()-tz_offset))
+        message += " at " + time.asctime(time.gmtime(time.time())) + " UTC\n"
         message += payload
     return message
 
