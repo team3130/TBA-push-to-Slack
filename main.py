@@ -29,29 +29,33 @@ def parse_tba(payload):
     message = ""
     body = json.loads(payload)
     if body['message_type'] == 'upcoming_match':
-        message += "Upcoming match red[ "
+        predicted = time.strftime("%H:%M",time.gmtime(body['message_data']['predicted_time']-tz_offset))
+        scheduled = time.strftime("%H:%M",time.gmtime(body['message_data']['scheduled_time']-tz_offset))
+        message += "Upcoming match at " + predicted + "\n[ "
         count = 0
         for team in body['message_data']['team_keys']:
             message += unfrc(team) +" "
             count += 1
             if count == 3:
-              message += "] blue[ "
-        predicted = time.strftime("%H:%M",time.gmtime(body['message_data']['predicted_time']-tz_offset))
-        scheduled = time.strftime("%H:%M",time.gmtime(body['message_data']['scheduled_time']-tz_offset))
-        message += "] at "+predicted+" (scheduled: "+scheduled+") "
-        message += body['message_data']['match_key']
+              message += "] vs. [ "
+        message += "]\nsched: " + scheduled + ", key: "
+        message += body['message_data']['match_key'] + "\n"
+        message += '"' + body['message_data']["event_name"] + '"'
     elif body['message_type'] == 'match_score':
-        message += "Match results: "
+        message += "Match " + str(body['message_data']['match']['match_number']) + " results: \n"
         for alliance in ['blue','red']:
             message += alliance + " [ "
             for team in body['message_data']['match']['alliances'][alliance]['teams']:
                 message += unfrc(team) +" "
             message += "] "
             message += "scored " + str(body['message_data']['match']['alliances'][alliance]['score'])
-            message += "; "
+            message += "\n"
+    elif body['message_type'] == 'verification':
+        print "Verification code: ", body['message_data']
     else:
         message += "TBA is trying to tell us something about " + body['message_type']
         message += " at " + time.asctime(time.gmtime(time.time()-tz_offset))
+        message += payload
     return message
 
 class IncomingHandler(webapp2.RequestHandler):
@@ -72,7 +76,7 @@ class IncomingHandler(webapp2.RequestHandler):
 
 class MainHandler(webapp2.RequestHandler):
     def get(self):
-        message = '<form action="/hook" method="post"><textarea name="payload"></textarea><input type="submit" value="Submit"></form>'
+        message = 'Hello, human...<form action="/hook" method="post"><textarea name="payload"></textarea><input type="submit" value="Submit"></form>'
         self.response.write(message)
 
 with open("secrets.yaml", 'r') as stream:
