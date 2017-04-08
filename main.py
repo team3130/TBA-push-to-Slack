@@ -25,6 +25,13 @@ def unfrc(str):
     return str.replace('frc','',1)
 
 def parse_tba(payload):
+    COMP_LEVELS_VERBOSE_FULL = {
+        "qm": "Qualification",
+        "ef": "Octo-finals",
+        "qf": "Quarterfinals",
+        "sf": "Semifinals",
+        "f": "Finals",
+    }
     tz_offset = config.get('tz_offset', 0)
     message = ""
     body = json.loads(payload)
@@ -50,11 +57,16 @@ def parse_tba(payload):
             message += "] "
             message += "scored " + str(body['message_data']['match']['alliances'][alliance]['score'])
             message += "\n"
+    elif body['message_type'] == 'schedule_updated':
+        first_match_time = time.strftime("%H:%M",time.gmtime(body['message_data']['first_match_time']-tz_offset))
+        message += "A match added " + first_match_time + ", nothing major."
+    elif body['message_type'] == 'starting_comp_level':
+        message += "Competition started. Level: " + COMP_LEVELS_VERBOSE_FULL[body['message_data']['comp_level']]
     elif body['message_type'] == 'verification':
         print "Verification code: ", body['message_data']
     else:
-        message += "TBA is trying to tell us something about " + body['message_type']
-        message += " at " + time.asctime(time.gmtime(time.time())) + " UTC\n"
+        message += "Unprogrammed (yet) notification at "
+        message += time.asctime(time.gmtime(time.time())) + " UTC\n"
         message += payload
     return message
 
