@@ -21,8 +21,11 @@ def post2slack(message):
     conn.close()
     return ret
 
-def unfrc(str):
-    return str.replace('frc','',1)
+def unfrc(team):
+    team = team.replace('frc','',1)
+    if team == str(config.get('frc_team', 0)):
+        team = '*' + team + '*'
+    return team
 
 def parse_tba(payload):
     COMP_LEVELS_VERBOSE_FULL = {
@@ -62,6 +65,14 @@ def parse_tba(payload):
         message += "A match added " + first_match_time + ", nothing major."
     elif body['message_type'] == 'starting_comp_level':
         message += "Competition started. Level: " + COMP_LEVELS_VERBOSE_FULL[body['message_data']['comp_level']]
+    elif body['message_type'] == 'alliance_selection':
+        message += "Alliances selected for " + body['message_data']['event']['start_date'] + "\n"
+        count = 1
+        for alliance in body['message_data']['event']['alliances']:
+            message += str(count) + ": "
+            message += ', '.join(unfrc(x) for x in alliance['picks'])
+            message += "\n"
+            count += 1
     elif body['message_type'] == 'verification':
         print "Verification code: ", body['message_data']
     else:
