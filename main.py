@@ -74,7 +74,9 @@ def parse_tba(payload):
             message += "\n"
             count += 1
     elif body['message_type'] == 'verification':
-        print "Verification code: ", body['message_data']
+        print("Verification code: ", body['message_data'])
+    elif body['message_type'] == 'ping':
+        message += "Test ping from TBA: " + body['message_data']['desc']
     else:
         message += "Unprogrammed (yet) notification at "
         message += time.asctime(time.gmtime(time.time())) + " UTC\n"
@@ -89,7 +91,7 @@ class IncomingHandler(webapp2.RequestHandler):
             checksum = self.request.headers.get('X-Tba-Checksum')
             if hashlib.sha1('{}{}'.format(config.get('tba_secret'), payload)).hexdigest() != checksum:
                 self.response.write("checksum error happened")
-                print "checksum error happened"
+                print("checksum error happened")
                 return
 
         if payload.startswith("payload="):
