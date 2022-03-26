@@ -44,8 +44,8 @@ def parse_tba(payload):
             count += 1
             if count == 3:
               message += "] vs. [ "
-        message += "]\nsched: " + scheduled + ", key: "
-        message += body['message_data']['match_key'] + "\n"
+        message += "]\nMatch " + body['message_data']['match_key']
+        message += " sched " + scheduled + "\n"
         message += '"' + body['message_data']["event_name"] + '"'
     elif body['message_type'] == 'match_score':
         message += "Match " + str(body['message_data']['match']['match_number']) + " results: \n"
@@ -81,19 +81,32 @@ def parse_tba(payload):
     return message
 
 def tba_to_slack(request):
-    request_json = request.get_json()
     if request.args and 'payload' in request.args:
-        payload = json.loads(request.args.get('payload'))
-    elif request_json and 'message_type' in request_json:
-        payload = request_json
+        # So we can use a HTML form for debugging
+        strdata = request.args.get('payload')
+        payload = json.loads(strdata)
     else:
-        return f'Empty request. Nothing happened'
+        # The body must be a JSON
+        request_json = request.get_json()
+        if request_json and 'message_type' in request_json:
+            strdata = request.data
+            payload = request_json
+        else:
+            # Otherwise no idea what to do
+            return f'Empty request. Nothing happened'
 
     tba_secret = os.environ.get('TBA_SECRET')
     if tba_secret:
-        checksum = request.headers.get('X-Tba-Checksum')
-        if hashlib.sha1('{}{}'.format(tba_secret.encode("utf-8"), payload.encode("utf-8"))).hexdigest() != checksum:
-            print("checksum error happened")
+        tba_checksum = request.headers.get('X-TBA-Checksum')
+        ch = hashlib.sha1()
+        ch.update(tba_secret.encode('UTF-8'))
+        ch.update(strdata)
+        checksum = ch.hexdigest()
+        if tba_checksum != checksum:
+            print(f"""
+    Checksum error happened
+    Request data: {strdata}
+    Checksum: {checksum}""")
             return ("checksum error happened", 501)
 
     return post2slack(parse_tba(payload))
