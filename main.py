@@ -10,7 +10,7 @@ def post2slack(message):
     params = json.dumps({'text': message})
     headers = {"Content-type": "application/json", "Accept": "text/plain"}
     r = requests.post(url, data=params, headers=headers)
-    ret = str(r.status_code) + " " + r.reason
+    ret = (r.reason, r.status_code)
     r.close()
     return ret
 
@@ -47,20 +47,24 @@ def parse_tba(payload):
         message += "]\nMatch " + body['message_data']['match_key']
         message += " sched " + scheduled + "\n"
         message += '"' + body['message_data']["event_name"] + '"'
+
     elif body['message_type'] == 'match_score':
         message += "Match " + str(body['message_data']['match']['match_number']) + " results: \n"
         for alliance in ['blue','red']:
             message += alliance + " [ "
-            for team in body['message_data']['match']['alliances'][alliance]['teams']:
+            for team in body['message_data']['match']['alliances'][alliance]['team_keys']:
                 message += unfrc(team) +" "
             message += "] "
             message += "scored " + str(body['message_data']['match']['alliances'][alliance]['score'])
             message += "\n"
+
     elif body['message_type'] == 'schedule_updated':
         first_match_time = time.strftime("%H:%M",time.localtime(body['message_data']['first_match_time']))
         message += "A match added " + first_match_time + ", nothing major."
+
     elif body['message_type'] == 'starting_comp_level':
         message += "Competition started. Level: " + COMP_LEVELS_VERBOSE_FULL[body['message_data']['comp_level']]
+
     elif body['message_type'] == 'alliance_selection':
         message += "Alliances selected for " + body['message_data']['event']['start_date'] + "\n"
         count = 1
@@ -69,18 +73,25 @@ def parse_tba(payload):
             message += ', '.join(unfrc(x) for x in alliance['picks'])
             message += "\n"
             count += 1
+
     elif body['message_type'] == 'verification':
         print("Verification code: ", body['message_data'])
         message = "Verification code: " + body['message_data']
+
     elif body['message_type'] == 'ping':
         message += "Test ping from TBA: " + body['message_data']['desc']
+
     else:
         message += "Unprogrammed (yet) notification at "
         message += time.asctime(time.localtime(time.time())) + "\n"
         message += payload
+
     return message
 
 def tba_to_slack(request):
+    strdata = None
+    payload = None
+    message_type = "Unknown"
     if request.args and 'payload' in request.args:
         # So we can use a HTML form for debugging
         strdata = request.args.get('payload')
@@ -109,4 +120,11 @@ def tba_to_slack(request):
     Checksum: {checksum}""")
             return ("checksum error happened", 501)
 
-    return post2slack(parse_tba(payload))
+    try:
+        message_type = payload['message_type']
+        message = parse_tba(payload)
+    except Exception as e:
+        print(f"Exception {e}\n with input data: \n{strdata}")
+        message = f"Something about {message_type}. Please check TBA."
+
+    return post2slack(message)
