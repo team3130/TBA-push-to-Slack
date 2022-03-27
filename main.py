@@ -60,7 +60,7 @@ def parse_tba(payload):
 
     elif body['message_type'] == 'schedule_updated':
         first_match_time = time.strftime("%H:%M",time.localtime(body['message_data']['first_match_time']))
-        message += "A match added " + first_match_time + ", nothing major."
+        message += "A match added " + first_match_time
 
     elif body['message_type'] == 'starting_comp_level':
         message += "Competition started. Level: " + COMP_LEVELS_VERBOSE_FULL[body['message_data']['comp_level']]
@@ -74,6 +74,15 @@ def parse_tba(payload):
             message += "\n"
             count += 1
 
+    elif body['message_type'] == 'match_video':
+        event_name = body['message_data']['event_name']
+        match_key = body['message_data']['match']['key']
+        message += f"A match video for {match_key} of {event_name} has been uploaded"
+        if "videos" in body['message_data']['match']:
+            if body['message_data']['match']['videos']['type'] == "youtube":
+                video_url = 'https://youtube.com/watch?v=' + body['message_data']['match']['videos']['key']
+                message += f'<a href="{video_url}">Youtube</a>'
+
     elif body['message_type'] == 'verification':
         print("Verification code: ", body['message_data'])
         message = "Verification code: " + body['message_data']
@@ -84,7 +93,7 @@ def parse_tba(payload):
     else:
         message += "Unprogrammed (yet) notification at "
         message += time.asctime(time.localtime(time.time())) + "\n"
-        message += payload
+        message += body['message_type']
 
     return message
 
@@ -122,6 +131,7 @@ def tba_to_slack(request):
 
     try:
         message_type = payload['message_type']
+        print(f"Processing {message_type}")
         message = parse_tba(payload)
     except Exception as e:
         print(f"Exception {e}\n with input data: \n{strdata}")
