@@ -6,7 +6,7 @@ import hashlib
 
 def post2slack(message):
     # Secret is passed as an ENV variable. Will throw an exception if not defined.
-    url = "https://hooks.slack.com" + os.environ['SLACK_TEST']
+    url = "https://hooks.slack.com" + os.environ['SLACK_PROD']
     params = json.dumps({'text': message})
     headers = {"Content-type": "application/json", "Accept": "text/plain"}
     r = requests.post(url, data=params, headers=headers)
@@ -32,68 +32,78 @@ def parse_tba(payload):
     os.environ['TZ'] = os.environ.get('TARGET_TZ', 'GMT')
     time.tzset()
 
-    message = ""
     body = payload
-    if body['message_type'] == 'upcoming_match':
-        predicted = time.strftime("%H:%M",time.localtime(body['message_data']['predicted_time']))
-        scheduled = time.strftime("%H:%M",time.localtime(body['message_data']['scheduled_time']))
-        message += "Upcoming match at " + predicted + "\n[ "
-        count = 0
-        for team in body['message_data']['team_keys']:
-            message += unfrc(team) +" "
-            count += 1
-            if count == 3:
-              message += "] vs. [ "
-        message += "]\nMatch " + body['message_data']['match_key']
-        message += " sched " + scheduled + "\n"
-        message += '"' + body['message_data']["event_name"] + '"'
+    message_data = body['message_data']
+    message_type = body['message_type']
+    message = ""
+    if message_type == 'upcoming_match':
+        message += "Upcoming match"
+        if 'predicted_time' in message_data:
+            predicted = time.strftime("%H:%M",time.localtime(message_data['predicted_time']))
+            message += " at " + predicted + "\n"
+        if 'scheduled_time' in message_data:
+            scheduled = time.strftime("%H:%M",time.localtime(message_data['scheduled_time']))
+            message += " sched " + scheduled + "\n"
+        if 'team_keys' in message_data:
+            message += "[ "
+            count = 0
+            for team in message_data['team_keys']:
+                message += unfrc(team) +" "
+                count += 1
+                if count == 3:
+                    message += "] vs. [ "
+        message += "]\nMatch " + message_data['match_key']
+        message += '"' + message_data["event_name"] + '"'
 
-    elif body['message_type'] == 'match_score':
-        message += "Match " + str(body['message_data']['match']['match_number']) + " results: \n"
+    elif message_type == 'match_score':
+        message += "Match " + str(message_data['match']['match_number']) + " results: \n"
         for alliance in ['blue','red']:
             message += alliance + " [ "
-            for team in body['message_data']['match']['alliances'][alliance]['team_keys']:
+            for team in message_data['match']['alliances'][alliance]['team_keys']:
                 message += unfrc(team) +" "
             message += "] "
-            message += "scored " + str(body['message_data']['match']['alliances'][alliance]['score'])
+            message += "scored " + str(message_data['match']['alliances'][alliance]['score'])
             message += "\n"
 
-    elif body['message_type'] == 'schedule_updated':
-        first_match_time = time.strftime("%H:%M",time.localtime(body['message_data']['first_match_time']))
-        message += "A match added " + first_match_time
+    elif message_type == 'schedule_updated':
+        message += "A match added "
+        if 'first_match_time' in message_data:
+            first_match_time = time.strftime("%H:%M",time.localtime(message_data['first_match_time']))
+            message += first_match_time
+        message += "\nto " + '"' + message_data["event_name"] + '"'
 
-    elif body['message_type'] == 'starting_comp_level':
-        message += "Competition started. Level: " + COMP_LEVELS_VERBOSE_FULL[body['message_data']['comp_level']]
+    elif message_type == 'starting_comp_level':
+        message += "Competition started. Level: " + COMP_LEVELS_VERBOSE_FULL[message_data['comp_level']]
 
-    elif body['message_type'] == 'alliance_selection':
-        message += "Alliances selected for " + body['message_data']['event']['start_date'] + "\n"
+    elif message_type == 'alliance_selection':
+        message += "Alliances selected for " + message_data['event']['start_date'] + "\n"
         count = 1
-        for alliance in body['message_data']['event']['alliances']:
+        for alliance in message_data['event']['alliances']:
             message += str(count) + ": "
             message += ', '.join(unfrc(x) for x in alliance['picks'])
             message += "\n"
             count += 1
 
-    elif body['message_type'] == 'match_video':
-        event_name = body['message_data']['event_name']
-        match_key = body['message_data']['match']['key']
+    elif message_type == 'match_video':
+        event_name = message_data['event_name']
+        match_key = message_data['match']['key']
         message += f"A match video for {match_key} of {event_name} has been uploaded"
-        if "videos" in body['message_data']['match']:
-            if body['message_data']['match']['videos']['type'] == "youtube":
-                video_url = 'https://youtube.com/watch?v=' + body['message_data']['match']['videos']['key']
+        if "videos" in message_data['match']:
+            if message_data['match']['videos']['type'] == "youtube":
+                video_url = 'https://youtube.com/watch?v=' + message_data['match']['videos']['key']
                 message += f'<a href="{video_url}">Youtube</a>'
 
-    elif body['message_type'] == 'verification':
-        print("Verification code: ", body['message_data'])
-        message = "Verification code: " + body['message_data']
+    elif message_type == 'verification':
+        print("Verification code: ", message_data)
+        message = "Verification code: " + message_data
 
-    elif body['message_type'] == 'ping':
-        message += "Test ping from TBA: " + body['message_data']['desc']
+    elif message_type == 'ping':
+        message += "Test ping from TBA: " + message_data['desc']
 
     else:
         message += "Unprogrammed (yet) notification at "
         message += time.asctime(time.localtime(time.time())) + "\n"
-        message += body['message_type']
+        message += message_type
 
     return message
 
