@@ -43,7 +43,7 @@ def parse_tba(payload):
             message += " at " + predicted + "\n"
         if 'scheduled_time' in message_data:
             scheduled = time.strftime("%H:%M",time.localtime(message_data['scheduled_time']))
-            message += " sched " + scheduled + "\n"
+            message += "Originally scheduled " + scheduled + "\n"
         if 'team_keys' in message_data:
             message += "[ "
             count = 0
@@ -53,16 +53,17 @@ def parse_tba(payload):
                 if count == 3:
                     message += "] vs. [ "
         message += "]\nMatch " + message_data['match_key']
-        message += '"' + message_data["event_name"] + '"'
+        message += ' at "' + message_data["event_name"] + '"'
 
     elif message_type == 'match_score':
-        message += "Match " + str(message_data['match']['match_number']) + " results: \n"
+        message += "Match " + str(message_data['match']['match_number']) + " results:\n"
         for alliance in ['blue','red']:
+            alliance_data = message_data['match']['alliances'][alliance]
             message += alliance + " [ "
-            for team in message_data['match']['alliances'][alliance]['team_keys']:
+            for team in alliance_data['team_keys']:
                 message += unfrc(team) +" "
             message += "] "
-            message += "scored " + str(message_data['match']['alliances'][alliance]['score'])
+            message += "scored " + str(alliance_data['score'])
             message += "\n"
 
     elif message_type == 'schedule_updated':
@@ -89,9 +90,10 @@ def parse_tba(payload):
         match_key = message_data['match']['key']
         message += f"A match video for {match_key} of {event_name} has been uploaded"
         if "videos" in message_data['match']:
-            if message_data['match']['videos']['type'] == "youtube":
-                video_url = 'https://youtube.com/watch?v=' + message_data['match']['videos']['key']
-                message += f'<a href="{video_url}">Youtube</a>'
+            for video in message_data['match']['videos']:
+                if video['type'] == "youtube":
+                    video_url = 'https://youtube.com/watch?v=' + video['key']
+                    message += f'<a href="{video_url}">Youtube</a>'
 
     elif message_type == 'verification':
         print("Verification code: ", message_data)
