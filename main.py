@@ -53,7 +53,13 @@ def parse_tba(payload):
                 if count == 3:
                     message += "] vs. [ "
         message += "]\nMatch " + message_data['match_key']
-        message += ' at "' + message_data["event_name"] + '"'
+        message += ' at ' + message_data["event_name"]
+        if 'webcast' in message_data:
+            webcast = message_data['webcast']
+            webcast_type = webcast['type']
+            webcast_channel = webcast['channel']
+            if webcast_type == "twitch":
+                message += f"\nCast: www.twitch.tv/{webcast_channel}"
 
     elif message_type == 'match_score':
         message += "Match " + str(message_data['match']['match_number']) + " results:\n"
@@ -71,29 +77,48 @@ def parse_tba(payload):
         if 'first_match_time' in message_data:
             first_match_time = time.strftime("%H:%M",time.localtime(message_data['first_match_time']))
             message += first_match_time
-        message += "\nto " + '"' + message_data["event_name"] + '"'
+        message += "\nto " + message_data["event_name"]
 
     elif message_type == 'starting_comp_level':
         message += "Competition started. Level: " + COMP_LEVELS_VERBOSE_FULL[message_data['comp_level']]
 
     elif message_type == 'alliance_selection':
-        message += "Alliances selected for " + message_data['event']['start_date'] + "\n"
-        count = 1
-        for alliance in message_data['event']['alliances']:
-            message += str(count) + ": "
-            message += ', '.join(unfrc(x) for x in alliance['picks'])
-            message += "\n"
-            count += 1
+        event_data = message_data['event']
+        event_name = message_data['event_name']
+        message += f"Alliances selected for {event_data['start_date']}-{event_data['end_date']}\n"
+        if 'alliances' in event_data:
+            count = 1
+            for alliance in event_data['alliances']:
+                message += str(count) + ": "
+                message += ', '.join(unfrc(x) for x in alliance['picks'])
+                message += "\n"
+                count += 1
+        else:
+            message += "That's all I know, no details yet\n"
+        message += "at " + event_name
 
     elif message_type == 'match_video':
         event_name = message_data['event_name']
         match_key = message_data['match']['key']
-        message += f"A match video for {match_key} of {event_name} has been uploaded"
+        message += f"A match video for {match_key} of {event_name} has been uploaded to "
         if "videos" in message_data['match']:
             for video in message_data['match']['videos']:
                 if video['type'] == "youtube":
                     video_url = 'https://youtube.com/watch?v=' + video['key']
-                    message += f'<a href="{video_url}">Youtube</a>'
+                    message += f'<{video_url}|Youtube> '
+
+    elif message_type == 'awards_posted':
+        awards = message_data['awards']
+        event_name = message_data['event_name']
+        message += "Awards Posted\n"
+        for award_data in awards:
+            message += f"{award_data['year']} {award_data['name']}: "
+            for recepient in award_data['recipient_list']:
+                if recepient['team_key']:
+                    message += unfrc(recepient['team_key']) + " "
+                if recepient['awardee']:
+                    message += recepient['awardee']
+                message += "\n"
 
     elif message_type == 'verification':
         print("Verification code: ", message_data)
