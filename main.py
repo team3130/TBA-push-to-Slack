@@ -1,22 +1,16 @@
 import os
 import json
 import time
-import requests
 import hashlib
+from slack_sdk.webhook import WebhookClient
+from slack_sdk.errors import SlackApiError
 
-def post2slack(message):
-    # Secret is passed as an ENV variable. Will throw an exception if not defined.
-    url = "https://hooks.slack.com" + os.environ['SLACK_PROD']
-    params = json.dumps({'text': message})
-    headers = {"Content-type": "application/json", "Accept": "text/plain"}
-    r = requests.post(url, data=params, headers=headers)
-    ret = (r.reason, r.status_code)
-    r.close()
-    return ret
 
 def unfrc(team):
+    # TBA uses 'frcNNNN' format for the team names, we drop 'frc'
     team = team.replace('frc','',1)
     if team == str(os.environ.get('FRC_TEAM', 0)):
+        # if this is our team we make it bold (Markup)
         team = '*' + team + '*'
     return team
 
@@ -32,9 +26,8 @@ def parse_tba(payload):
     os.environ['TZ'] = os.environ.get('TARGET_TZ', 'GMT')
     time.tzset()
 
-    body = payload
-    message_data = body['message_data']
-    message_type = body['message_type']
+    message_data = payload['message_data']
+    message_type = payload['message_type']
     message = ""
     if message_type == 'upcoming_match':
         message += "Upcoming match"
@@ -125,7 +118,7 @@ def parse_tba(payload):
         message = "Verification code: " + message_data
 
     elif message_type == 'ping':
-        message += "Test ping from TBA: " + message_data['desc']
+        message += "Ping: " + message_data['desc']
 
     else:
         message += "Unprogrammed (yet) notification at "
@@ -154,12 +147,11 @@ def tba_to_slack(request):
 
     tba_secret = os.environ.get('TBA_SECRET')
     if tba_secret:
-        tba_checksum = request.headers.get('X-TBA-Checksum')
         ch = hashlib.sha1()
         ch.update(tba_secret.encode('UTF-8'))
         ch.update(strdata)
         checksum = ch.hexdigest()
-        if tba_checksum != checksum:
+        if checksum != request.headers.get('X-TBA-Checksum'):
             print(f"""
     Checksum error happened
     Request data: {strdata}
@@ -174,4 +166,20 @@ def tba_to_slack(request):
         print(f"Exception {e}\n with input data: \n{strdata}")
         message = f"Something about {message_type}. Please check TBA."
 
-    return post2slack(message)
+    #slack_token = os.environ['SLACK_PROD_TOKEN']
+    url = "https://hooks.slack.com" + os.environ['SLACK_PROD']
+    webhook = WebhookClient(url)
+    r = webhook.send(text=message)
+    return (r.body, r.status_code)
+
+
+if __name__ == '__main__':
+    class My_req:
+        args = {
+            "payload": """{
+                "message_type": "ping",
+                "message_data": {"desc": "Command line test"}
+            }"""
+        }
+    test_req = My_req()
+    print(tba_to_slack(test_req))
