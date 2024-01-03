@@ -42,19 +42,19 @@ class TBA_parser:
         return team
 
     def parse_tba(self):
+        if self.message_data.get("event_key") == TBA_TEST_EVENT:
+            self.env = "TEST"
 
         if self.message_type == 'upcoming_match':
-            if self.message_data.get("event_key") == TBA_TEST_EVENT:
-                self.env = "TEST"
             self.message += "Upcoming match"
-            if 'predicted_time' in message_data:
-                predicted = time.strftime("%H:%M",time.localtime(message_data['predicted_time']))
-                self.message += " at " + predicted + "\n"
-            if 'scheduled_time' in message_data:
-                scheduled = time.strftime("%H:%M",time.localtime(message_data['scheduled_time']))
-                self.message += "Originally scheduled " + scheduled + "\n"
-            if 'team_keys' in message_data:
-                self.message += "[ "
+            if 'predicted_time' in self.message_data:
+                predicted = time.strftime("%H:%M",time.localtime(self.message_data['predicted_time']))
+                self.message += " at " + predicted
+            if 'scheduled_time' in self.message_data:
+                scheduled = time.strftime("%H:%M",time.localtime(self.message_data['scheduled_time']))
+                self.message += "\nOriginally scheduled " + scheduled
+            if 'team_keys' in self.message_data:
+                self.message += "\n[ "
                 count = 0
                 for team in self.message_data['team_keys']:
                     self.message += self.unfrc(team) +" "
@@ -75,8 +75,6 @@ class TBA_parser:
                     self.message += f'<{video_url}|Cast at Youtube> '
 
         elif self.message_type == 'match_score':
-            if self.message_data.get("event_key") == TBA_TEST_EVENT:
-                self.env = "TEST"
             self.message += f"Match {str(self.message_data['match']['match_number'])} results:\n"
             for alliance in ['blue','red']:
                 alliance_data = self.message_data['match']['alliances'][alliance]
@@ -87,8 +85,6 @@ class TBA_parser:
                 self.message += "\n"
 
         elif self.message_type == 'schedule_updated':
-            if self.message_data.get("event_key") == TBA_TEST_EVENT:
-                self.env = "TEST"
             self.message += "A match added "
             if 'first_match_time' in self.message_data:
                 first_match_time = time.strftime("%H:%M",time.localtime(self.message_data['first_match_time']))
@@ -96,17 +92,13 @@ class TBA_parser:
             self.message += "\nto " + self.message_data["event_name"]
 
         elif self.message_type == 'starting_comp_level':
-            if self.message_data.get("event_key") == TBA_TEST_EVENT:
-                self.env = "TEST"
             self.message += "Competition started. Level: " 
             self.message += self.COMP_LEVELS_VERBOSE_FULL.get(self.message_data.get('comp_level'))
 
         elif self.message_type == 'alliance_selection':
-            if self.message_data.get("event_key") == TBA_TEST_EVENT:
-                self.env = "TEST"
             event_data = self.message_data.get('event')
             event_name = self.message_data.get('event_name')
-            self.message += f"Alliances selected for {event_data['start_date']}-{event_data['end_date']}\n"
+            self.message += f"Alliances selected for {event_name} ({event_data.get('end_date')})\n"
             if 'alliances' in event_data:
                 count = 1
                 for alliance in event_data['alliances']:
@@ -115,10 +107,11 @@ class TBA_parser:
                     self.message += "\n"
                     count += 1
             else:
+                print(f"No alliances? {event_data}")
                 self.message += "That's all I know, no details yet\n"
-            self.message += "at " + event_name
 
         elif self.message_type == 'match_video':
+            # Match Video is weird, it has the event key inside 'match' object
             if self.message_data.get('match').get('event_key') == TBA_TEST_EVENT:
                 self.env = "TEST"
             event_name = self.message_data['event_name']
@@ -131,8 +124,6 @@ class TBA_parser:
                         self.message += f'<{video_url}|Youtube> '
 
         elif self.message_type == 'awards_posted':
-            if self.message_data.get('event_key') == TBA_TEST_EVENT:
-                self.env = "TEST"
             awards = self.message_data.get('awards')
             event_name = self.message_data.get('event_name')
             self.message += "Awards Posted\n"
@@ -146,8 +137,6 @@ class TBA_parser:
                     self.message += "\n"
 
         elif self.message_type == 'broadcast':
-            if self.message_data.get('event_key') == TBA_TEST_EVENT:
-                self.env = "TEST"
             self.message += f"Broadcast: {self.message_data.get('title')}\n"
             self.message += self.message_data.get('desc')
             url = self.message_data.get('url')
@@ -175,7 +164,8 @@ def tba_to_slack(request):
     strdata = None
     payload = None
 
-    if request.content_type == "application/json":
+    print(f"Request type: {request.content_type}")
+    if request.content_type.find("application/json") >= 0:
         # The body must be a JSON
         strdata = request.data
         payload = request.get_json()
@@ -186,6 +176,7 @@ def tba_to_slack(request):
         payload = json.loads(strdata)
 
     else:
+        print("Malformed request, payload not found")
         return (f'Bad request', 400)
 
     tba_secret = os.environ.get('TBA_SECRET')
@@ -205,15 +196,17 @@ def tba_to_slack(request):
         print(f"Processing {message_type}")
     else:
         # Otherwise no idea what to do
+        print("No message type in the payload")
         return (f'Empty request. Nothing happened', 400)
 
     parser = TBA_parser(payload)
     try:
         message = parser.parse_tba()
     except Exception as e:
-        print(f"Exception {e}\n with input data: \n{strdata}")
+        print(f"Exception [{e}]\ninput data: {strdata}")
         message = f"Couldn't parse '{message_type}' notification. Please check TBA."
 
+    # Parsing the input data the parser can see if it's a TEST data
     if parser.env == "PROD":
         url = prod_url
     else:
