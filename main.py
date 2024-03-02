@@ -8,7 +8,8 @@ from slack_sdk.errors import SlackApiError
 
 TBA_TEST_EVENT = "2014necmp"
 
-#slack_token = os.environ['SLACK_PROD_TOKEN']
+# Let the parser decide whether this is a test run based on the content
+# and then the sender will choose between these two URLs
 prod_url = "https://hooks.slack.com" + os.environ.get('SLACK_PROD')
 test_url = "https://hooks.slack.com" + os.environ.get('SLACK_TEST')
 
@@ -46,13 +47,13 @@ class TBA_parser:
             self.env = "TEST"
 
         if self.message_type == 'upcoming_match':
-            self.message += "Upcoming match"
-            if 'predicted_time' in self.message_data:
-                predicted = time.strftime("%H:%M",time.localtime(self.message_data['predicted_time']))
-                self.message += " at " + predicted
+            self.message += "Upcoming match " + self.message_data.get('match_key') + "\n"
             if 'scheduled_time' in self.message_data:
                 scheduled = time.strftime("%H:%M",time.localtime(self.message_data['scheduled_time']))
-                self.message += "\nOriginally scheduled " + scheduled
+                self.message += "Schedule time: " + scheduled
+            if 'predicted_time' in self.message_data:
+                predicted = time.strftime("%H:%M",time.localtime(self.message_data['predicted_time']))
+                self.message += " Estimated: " + predicted
             if 'team_keys' in self.message_data:
                 self.message += "\n[ "
                 count = 0
@@ -61,18 +62,17 @@ class TBA_parser:
                     count += 1
                     if count == 3:
                         self.message += "] vs. [ "
-            self.message += "]\nMatch " + self.message_data.get('match_key')
-            self.message += ' at ' + self.message_data.get("event_name")
+            self.message += "]\nat " + self.message_data.get("event_name")
             if 'webcast' in self.message_data:
                 webcast = self.message_data['webcast']
                 webcast_type = webcast.get('type')
                 webcast_channel = webcast.get('channel')
                 if webcast_type == "twitch":
                     video_url = f"https://www.twitch.tv/{webcast_channel}"
-                    self.message += f'<{video_url}|Cast at Twitch> '
+                    self.message += f' | <{video_url}|Cast at Twitch> '
                 elif webcast_type == "youtube":
                     video_url = f"https://youtube.com/watch?v={webcast_channel}"
-                    self.message += f'<{video_url}|Cast at Youtube> '
+                    self.message += f' | <{video_url}|Cast at Youtube> '
 
         elif self.message_type == 'match_score':
             self.message += f"Match {str(self.message_data['match']['match_number'])} results:\n"
